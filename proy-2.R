@@ -1,4 +1,6 @@
 # Libraries
+library(flexdashboard)
+library(raster)
 library(plotly)
 library(udunits2)
 library(sf)
@@ -38,6 +40,11 @@ st_crs(orquideas) = 4326
 ### Eliminación datos con incertidumbre alta
 orquideas <-
   orquideas %>%
+  mutate(coordinateUncertaintyInMeters = as.numeric
+         (coordinateUncertaintyInMeters))%>%
+  mutate(eventDate = as.Date(eventDate, "%Y-%m-%d"))
+orquideas <-
+  orquideas %>%
   filter(coordinateUncertaintyInMeters < 1000)
 
 ### Cruce datos cantón
@@ -54,3 +61,41 @@ orquideas %>%
                            pageLength = 10))
 
 # Gráfico Plotly
+orquideas_10mayores <-
+  orquideas %>% 
+  st_drop_geometry() %>%
+  filter(!is.na(species) & species != "") %>%
+  group_by(species) %>% 
+  summarise(registros = n()) %>%
+  arrange(desc(registros)) %>%
+  slice(1:10) 
+
+orquideas_otros <-
+  orquideas %>% 
+  st_drop_geometry() %>%
+  filter(!is.na(species) & species != "") %>%
+  group_by(species) %>% 
+  summarise(registros = n()) %>%
+  arrange(desc(registros)) %>%
+  slice(11:232) %>%
+  group_by(species = as.character("Otros")) %>%
+  summarise(registros = sum(registros))
+
+especies_orquideas <- merge(orquideas_10mayores, orquideas_otros,
+                                   all = TRUE)
+
+pal_plotly <- c("#ffd700", "#0059cf", "#008024", "#0000bf", "#ba151b",
+                "#00a1b3", "#ff7300", "#42087b", "#60BC83", "#1C2DAA")
+
+plot_ly(especies_orquideas, labels = ~ species, values = ~ registros,
+        type = "pie", sort = TRUE,
+        textposition = 'inside',
+        marker = list (colors = pal_plotly),
+        textinfo = 'label+percent',
+        hover = ~ 'Cantidad de registros',
+        hoverinfo = "label+value",
+        showlegend = TRUE) %>%
+  layout(title = "Porcentaje de registros de orquídeas en Costa Rica")%>%
+  config(locale = "es")
+
+# Mapas
